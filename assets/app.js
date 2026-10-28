@@ -150,7 +150,8 @@
     closeModal();
     app.innerHTML = '<div class="center-load"><span class="spinner"></span> กำลังโหลด…</div>';
     try {
-      if (!S.boot) await refreshBoot();
+      // หน้าที่ load เองโหลด bootstrap อยู่แล้ว (boots) ไม่ต้องเรียกซ้ำ — Apps Script ตอบช้าครั้งละหลายวินาที
+      if (!S.boot && !S.page.boots) await refreshBoot();
       if (S.page.load) await S.page.load(parts);
       paint();
       window.scrollTo(0, 0);
@@ -859,7 +860,11 @@
 
   // ========== แอดมิน ==========
 
-  async function loadAdmin() { await refreshBoot(); S.admin = await call('adminData'); }
+  async function loadAdmin() {
+    const [boot, admin] = await Promise.all([call('bootstrap'), call('adminData')]);
+    S.boot = boot;
+    S.admin = admin;
+  }
   const setting = (k) => (S.admin.settings.find((s) => s.id === k) || {}).value || '';
 
   PAGES.admin = {
@@ -1042,7 +1047,8 @@
     async load() {
       await loadAdmin();
       // จำลิงก์หน้าเว็บไว้ในชีต ให้เมนู "ดูลิงก์ทั้งหมด" ใน Google Sheet แสดงลิงก์จริง
-      if (!Client.demo && setting('siteUrl') !== BASE) {
+      const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+      if (!Client.demo && !local && setting('siteUrl') !== BASE) {
         await call('saveSettings', { values: { siteUrl: BASE } });
         S.admin = await call('adminData');
       }
@@ -1158,6 +1164,9 @@
   };
 
   // ---------- เริ่มทำงาน ----------
+
+  // หน้าเหล่านี้โหลด bootstrap เองใน load()
+  ['admin', 'regs', 'certs', 'settings', 'bracket', 'scores', 'ref', 'score'].forEach((k) => { PAGES[k].boots = true; });
 
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');

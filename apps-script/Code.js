@@ -23,8 +23,18 @@ function doPost(e) {
   return respond_(body.action, body.payload || {});
 }
 
+// ข้อมูลหน้าแรกของนักเรียน (bootstrap ที่ไม่มีรหัส) เก็บแคชไว้ 60 วินาที
+// เพราะนักเรียนทั้งโรงเรียนสแกนพร้อมกัน และการอ่านทุกแท็บใช้เวลาหลายวินาที
+// คำสั่งที่เขียนข้อมูลจะล้างแคชทันที ส่วนการแก้ในชีตโดยตรงจะเห็นผลภายใน 1 นาที
+var BOOT_CACHE_KEY_ = 'bootstrap-public';
+
 function respond_(action, payload) {
   var lock = null, out;
+  var publicBoot = action === 'bootstrap' && !payload.adminKey && !payload.captainKey && !payload.refKey;
+  if (publicBoot) {
+    var hit = CacheService.getScriptCache().get(BOOT_CACHE_KEY_);
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+  }
   try {
     // คำสั่งที่เขียนข้อมูลต้องเข้าคิว กันนักเรียนส่งพร้อมกันแล้วข้อมูลชนกัน
     if (READ_ONLY_.indexOf(action) < 0) {
@@ -38,7 +48,12 @@ function respond_(action, payload) {
   } finally {
     if (lock) lock.releaseLock();
   }
-  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+  var json = JSON.stringify(out);
+  try {
+    if (lock && out.ok) CacheService.getScriptCache().remove(BOOT_CACHE_KEY_);
+    if (publicBoot && out.ok) CacheService.getScriptCache().put(BOOT_CACHE_KEY_, json, 60);
+  } catch (err) { /* ข้อมูลเกิน 100KB แคชไม่ได้ ก็ทำงานต่อแบบไม่มีแคช */ }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
 // ---------- Db บน Google Sheet ----------
