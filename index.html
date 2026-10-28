@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ระบบกีฬาสี</title>
+  <meta name="description" content="สมัครแข่งกีฬาสีผ่าน QR จัดสายการแข่งขัน บันทึกผล และสรุปอันดับเพื่อทำเกียรติบัตร">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div id="app"><div class="center-load"><span class="spinner"></span> กำลังโหลด…</div></div>
+  <div id="modal" hidden></div>
+  <div id="toasts" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="config.js"></script>
+  <script src="apps-script/Core.js"></script>
+  <script src="apps-script/Api.js"></script>
+  <script src="apps-script/Seed.js"></script>
+  <script src="assets/demo-db.js"></script>
+  <script src="assets/client.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
