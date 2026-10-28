@@ -165,7 +165,7 @@ function setupDemoData() {
 
 function showLinks() {
   var s = Api.settings();
-  var site = 'https://<ชื่อผู้ใช้>.github.io/<ชื่อ repo>/';
+  var site = s.siteUrl || 'https://<ชื่อผู้ใช้>.github.io/<ชื่อ repo>/';
   var lines = ['ลิงก์นักเรียน (ทำ QR): ' + site, '', 'แอดมิน: ' + site + '?admin=' + s.adminKey,
     'กรรมการบันทึกผล: ' + site + '?ref=' + s.refereeKey, ''];
   Db.all('Teams').forEach(function (t) { lines.push('หัวหน้าสี' + t.name + ': ' + site + '?captain=' + t.captainKey); });

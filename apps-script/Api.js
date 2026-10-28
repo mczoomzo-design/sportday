@@ -29,7 +29,7 @@ var Api = (function () {
   };
 
   var SETTING_KEYS = ['eventName', 'schoolName', 'academicYear', 'regDeadline', 'pointsGold', 'pointsSilver',
-    'pointsBronze', 'pointsHonor', 'certTemplateId', 'certFolderId'];
+    'pointsBronze', 'pointsHonor', 'certTemplateId', 'certFolderId', 'siteUrl'];
 
   var ST = { pending: 'รออนุมัติ', approved: 'อนุมัติ', rejected: 'ไม่อนุมัติ' };
 

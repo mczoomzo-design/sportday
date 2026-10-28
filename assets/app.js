@@ -1036,7 +1036,14 @@
 
   PAGES.settings = {
     roles: ['admin'],
-    load: loadAdmin,
+    async load() {
+      await loadAdmin();
+      // จำลิงก์หน้าเว็บไว้ในชีต ให้เมนู "ดูลิงก์ทั้งหมด" ใน Google Sheet แสดงลิงก์จริง
+      if (!Client.demo && setting('siteUrl') !== BASE) {
+        await call('saveSettings', { values: { siteUrl: BASE } });
+        S.admin = await call('adminData');
+      }
+    },
     view() {
       const B = S.boot, A = S.admin;
       const f = (k, label, type = 'text', hint = '') => `<label class="field"><span>${label}</span><input type="${type}" data-setting="${k}" value="${esc(k === 'regDeadline' ? toLocalInput(setting(k)) : setting(k))}">${hint ? `<small>${hint}</small>` : ''}</label>`;

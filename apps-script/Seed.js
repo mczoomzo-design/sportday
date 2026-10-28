@@ -55,6 +55,7 @@ var Seed = (function () {
       ['adminKey', opts.adminKey || randomKey(16), 'รหัสลิงก์แอดมิน (?admin=...) ห้ามเผยแพร่'],
       ['refereeKey', opts.refereeKey || randomKey(10), 'รหัสลิงก์กรรมการบันทึกผล (?ref=...)'],
       ['codeSalt', randomKey(12), 'ใช้เข้ารหัสรหัสทีม ห้ามแก้หลังเปิดรับสมัคร'],
+      ['siteUrl', '', 'ลิงก์หน้าเว็บ (ใส่ให้อัตโนมัติเมื่อแอดมินเปิดหน้าตั้งค่าครั้งแรก)'],
       ['certTemplateId', '', 'ไอดีไฟล์ Google Slides แม่แบบเกียรติบัตร'],
       ['certFolderId', '', 'ไอดีโฟลเดอร์ Drive เก็บ PDF (เว้นว่าง = สร้างให้อัตโนมัติ)']
     ].map(function (r) { return { id: r[0], value: r[1], description: r[2] }; });
