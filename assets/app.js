@@ -155,7 +155,10 @@
       paint();
       window.scrollTo(0, 0);
     } catch (e) {
-      app.innerHTML = mobileShell('เกิดข้อผิดพลาด', `${note('danger', 'alert', esc(e.message))}<a class="btn" href="${esc(BASE)}">กลับหน้าแรก</a>`, { back: false });
+      // เบราว์เซอร์ยังจำ config.js เก่า (โหมดทดลอง) ไว้ รหัสจริงจึงใช้ไม่ได้
+      const stale = Client.demo && ROLE !== 'public' && !/^demo-/.test(Object.values(KEYS)[0] || '');
+      const hint = stale ? note('warning', 'info', 'หน้าเว็บนี้ยังเป็นโหมดทดลองอยู่ (เบราว์เซอร์จำไฟล์เก่าไว้) กด <b>Ctrl+F5</b> หรือ <b>Ctrl+Shift+R</b> เพื่อโหลดใหม่') : '';
+      app.innerHTML = mobileShell('เกิดข้อผิดพลาด', `${note('danger', 'alert', esc(e.message))}${hint}<a class="btn" href="${esc(BASE)}">กลับหน้าแรก</a>`, { back: false });
     }
   }
 
