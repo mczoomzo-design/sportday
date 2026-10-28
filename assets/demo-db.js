@@ -3,10 +3,11 @@
  * มีเมธอดเหมือน Db ใน apps-script/Code.js ทุกตัว Api.js จึงใช้ร่วมกันได้
  */
 var Db = (function () {
-  var KEY = 'sportday-demo-v1';
+  var KEY = 'sportday-demo-v2';
   var DEMO_KEYS = {
     adminKey: 'demo-admin', refereeKey: 'demo-ref',
-    captainKeys: ['demo-red', 'demo-yellow', 'demo-green', 'demo-blue', 'demo-pink']
+    captainKeys: ['demo-red', 'demo-yellow', 'demo-green', 'demo-blue', 'demo-pink'],
+    joinKeys: ['join-red', 'join-yellow', 'join-green', 'join-blue', 'join-pink']
   };
   var state = null;
 

@@ -30,7 +30,7 @@ var BOOT_CACHE_KEY_ = 'bootstrap-public';
 
 function respond_(action, payload) {
   var lock = null, out;
-  var publicBoot = action === 'bootstrap' && !payload.adminKey && !payload.captainKey && !payload.refKey;
+  var publicBoot = action === 'bootstrap' && !payload.adminKey && !payload.captainKey && !payload.refKey && !payload.joinKey;
   if (publicBoot) {
     var hit = CacheService.getScriptCache().get(BOOT_CACHE_KEY_);
     if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
@@ -119,6 +119,11 @@ var Db = (function () {
     updateMany: function (t, rows) {
       var self = this;
       rows.forEach(function (r) { self.update(t, r.id, r); });
+    },
+    // เพิ่มหัวคอลัมน์ใหม่ให้ชีตที่ติดตั้งไว้ก่อน (เช่น Teams.joinKey)
+    ensureHeader: function (t) {
+      var cols = Api.TABLES[t];
+      sheet(t).getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#E8ECFC');
     },
     removeWhere: function (t, fn) {
       var list = load(t), keep = list.filter(function (e) { return !fn(Object.assign({}, e.data)); });

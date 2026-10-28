@@ -18,6 +18,7 @@
   if (Q.get('admin')) KEYS.adminKey = Q.get('admin');
   else if (Q.get('captain')) KEYS.captainKey = Q.get('captain');
   else if (Q.get('ref')) KEYS.refKey = Q.get('ref');
+  else if (Q.get('join')) KEYS.joinKey = Q.get('join'); // ลิงก์สมัครของแต่ละสี
   const ROLE = KEYS.adminKey ? 'admin' : KEYS.captainKey ? 'captain' : KEYS.refKey ? 'referee' : 'public';
   const BASE = location.origin + location.pathname;
   const HOME = { admin: 'admin', captain: 'captain', referee: 'ref', public: '' }[ROLE];
@@ -290,8 +291,9 @@
   ACT['mem-role'] = (el) => { S.ed.members.find((m) => m.studentId === el.dataset.id).role = el.dataset.role; paint(); };
   ACT['mem-remove'] = (el) => { S.ed.members = S.ed.members.filter((m) => m.studentId !== el.dataset.id); paint(); };
 
-  async function makeEditor(sport, teamId, members, mode) {
-    const pool = await call('teamStudents', { teamId, sportId: sport.id });
+  // auth = รหัสทีม (หน้าทีม) — ตอนสมัครใช้ลิงก์สมัครของสีที่อยู่ใน KEYS แล้ว
+  async function makeEditor(sport, teamId, members, mode, auth) {
+    const pool = await call('teamStudents', Object.assign({ teamId, sportId: sport.id }, auth || {}));
     S.ed = { sport, teamId, pool, members, search: '', mode: mode || 'multi' };
   }
 
@@ -370,9 +372,11 @@
       return mobileShell('', `
         <section class="hero"><div class="logo">${ic('trophy', 'lg')}</div><p class="muted">${esc(ev.school)}</p>
           <h1>${esc(ev.name)} ${esc(ev.year)}</h1>
-          ${ev.closed ? pill('ปิดรับสมัครแล้ว', 'danger') : pill('ปิดรับสมัคร ' + fmt(ev.deadline), 'warning')}</section>
+          ${ev.closed ? pill('ปิดรับสมัครแล้ว', 'danger') : pill('ปิดรับสมัคร ' + fmt(ev.deadline), 'warning')}
+          ${S.boot.joinTeam ? `<div class="row" style="justify-content:center">ลิงก์สมัครของ ${chip(S.boot.joinTeam.id)}</div>` : ''}</section>
         <div class="menu">${roleLink}
-          ${item('#/register', 'plus', 'สมัครแข่งกีฬา', 'เลือกห้องและชื่อ แล้วเลือกกีฬา', ev.closed)}
+          ${regTeam() ? item('#/register', 'plus', 'สมัครแข่งกีฬา', 'เลือกห้องและชื่อ แล้วเลือกกีฬา', ev.closed)
+    : item('#/register', 'plus', 'สมัครแข่งกีฬา', 'ต้องใช้ลิงก์/QR สมัครของสีตัวเอง ขอได้จากประธานสี', true)}
           ${item('#/team', 'key', 'มีรหัสแก้ไขทีม', 'แก้รายชื่อ / เปลี่ยนตัวนักกีฬา')}
           ${item('#/help', 'info', 'วิธีใช้งาน', 'คู่มือสั้น ๆ แยกตามบทบาท')}
           ${item('#/brackets', 'bracket', 'สายการแข่งขัน', 'สีไหนเจอสีไหน ใครเข้ารอบ')}
@@ -401,12 +405,25 @@
     }
   };
 
+  // สีที่ลิงก์นี้สมัครได้: ลิงก์สมัครของสี / ประธานสีสีตัวเอง / แอดมินทุกสี ('*')
+  function regTeam() {
+    if (ROLE === 'admin') return '*';
+    if (ROLE === 'captain') return S.boot.myTeam && S.boot.myTeam.id;
+    return S.boot.joinTeam && S.boot.joinTeam.id;
+  }
+
   function regStep1(r) {
+    const team = regTeam();
+    if (!team) {
+      return mobileShell('สมัครแข่งกีฬา', `${note('warning', 'alert', 'ลิงก์นี้ใช้ดูสายการแข่งขันและผลเท่านั้น<br>การสมัครต้องใช้ <b>ลิงก์หรือ QR สมัครของสีตัวเอง</b> ขอได้จากประธานสี')}
+        ${codeBox()}<a class="btn" href="#/">กลับหน้าแรก</a>`, { back: '' });
+    }
     const tid = r.classRoom && classTeam(r.classRoom);
-    const rooms = S.boot.classes.map((c) => c.id).sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+    const rooms = S.boot.classes.filter((c) => team === '*' || c.teamId === team).map((c) => c.id)
+      .sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
     return mobileShell('สมัครแข่งกีฬา', `${stepsBar(1)}
       <div class="card stack">
-        <p class="small muted">ไม่ต้องล็อกอิน — เลือกห้องและชื่อของคุณ</p>
+        <p class="small muted">ไม่ต้องล็อกอิน — เลือกห้องและชื่อของคุณ${team !== '*' ? ` (เฉพาะห้องของ${chip(team)})` : ''}</p>
         <label class="field"><span>ชั้น / ห้อง</span><select data-change="reg-class"><option value="">เลือกห้อง…</option>
           ${rooms.map((c) => `<option ${c === r.classRoom ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
         ${r.classRoom ? `${tid ? note('primary', 'info', `ห้องนี้อยู่ ${chip(tid)} (ระบบเลือกสีให้อัตโนมัติ)`) : note('danger', 'alert', 'ห้องนี้ยังไม่ได้กำหนดสี แจ้งครู')}
@@ -603,7 +620,7 @@
   ACT['team-mode'] = (el) => busy(el, async () => {
     const T = S.team, m = el.dataset.v;
     if (m === 'edit' || m === 'sub') {
-      await makeEditor(T.sport, T.team.id, T.athletes.map((a) => ({ studentId: a.studentId, role: a.role })), m === 'sub' ? 'pick' : 'multi');
+      await makeEditor(T.sport, T.team.id, T.athletes.map((a) => ({ studentId: a.studentId, role: a.role })), m === 'sub' ? 'pick' : 'multi', teamAuth());
     }
     if (m === 'sub') S.view.sub = { outId: (T.athletes[0] || {}).id || '', inId: '', eff: 'นัดถัดไปเป็นต้นไป', reason: '', detail: '', actor: T.code ? T.registration.repName : '' };
     if (m === 'edit') S.view.actor = T.code ? T.registration.repName : '';
@@ -708,6 +725,10 @@
       if (tab === 'log') body = logList(C.log);
       return mobileShell('ประธานสี' + C.team.name, `
         <div class="card row">${chip(C.team.id)}<div class="grow small muted">เปิดจากลิงก์ประธานสี (ลิงก์ลับ ไม่ต้องล็อกอิน) • ${esc(C.actor)}</div></div>
+        <div class="card stack"><b class="row">${ic('users')} ลิงก์สมัครของสี${esc(C.team.name)}</b>
+          <p class="small">ส่งในกลุ่มของสี${esc(C.team.name)}เท่านั้น ลิงก์นี้สมัครได้เฉพาะห้องและนักเรียนสี${esc(C.team.name)} สีอื่นใช้ลงแทนไม่ได้</p>
+          <div class="row wrap"><button class="btn sm" data-act="copy" data-v="${esc(BASE + '?join=' + C.joinKey)}">${ic('copy', 'sm')} คัดลอกลิงก์สมัคร</button>
+          <a class="btn sm primary" href="#/poster/${C.team.id}">${ic('print', 'sm')} โปสเตอร์ QR ของสี</a></div></div>
         <div class="tabs">${tabs.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="cap-tab" data-v="${k}">${l}</button>`).join('')}</div>${body}`,
       { back: '', wide: true, right: `<a class="icon-btn" href="#/help" title="วิธีใช้งาน">${ic('info')}</a><button class="icon-btn" data-act="reload">${ic('refresh')}</button>` });
     }
@@ -1073,7 +1094,9 @@
       const link = (label, url) => `<div class="link-row"><span style="min-width:150px" class="small"><b>${label}</b></span><code>${esc(url)}</code><button class="btn sm" data-act="copy" data-v="${esc(url)}">${ic('copy', 'sm')} คัดลอก</button></div>`;
       return adminShell('settings', 'ตั้งค่า & ลิงก์', 'ข้อมูลห้อง/นักเรียน/สี แก้ในแท็บ Classes, Students, Teams ของ Google Sheet ได้โดยตรง', `<a class="btn primary" href="#/poster">${ic('print', 'sm')} โปสเตอร์ QR</a>`, `
         <div class="card stack"><h2>ลิงก์สำหรับแต่ละบทบาท (ไม่ต้องล็อกอิน — ใครมีลิงก์ก็ใช้สิทธิ์นั้นได้ ส่งเป็นการส่วนตัว)</h2><div>
-          ${link('นักเรียน (ทำ QR)', BASE)}
+          ${link('หน้าเว็บสาธารณะ (ดูสาย/ผล)', BASE)}
+          ${A.teams.map((t) => `<div class="link-row"><span style="min-width:150px" class="small"><b>ลิงก์สมัครสี${esc(t.name)}</b></span><code>${esc(BASE + '?join=' + t.joinKey)}</code>
+            <button class="btn sm" data-act="copy" data-v="${esc(BASE + '?join=' + t.joinKey)}">${ic('copy', 'sm')} คัดลอก</button><a class="btn sm" href="#/poster/${t.id}">${ic('print', 'sm')} QR</a></div>`).join('')}
           ${A.teams.map((t) => link('ประธานสี' + t.name + (t.captainName ? ' (' + t.captainName + ')' : ''), BASE + '?captain=' + t.captainKey)).join('')}
           ${link('กรรมการบันทึกผล', BASE + '?ref=' + setting('refereeKey'))}
           ${link('แอดมิน', BASE + '?admin=' + setting('adminKey'))}</div>
@@ -1136,14 +1159,28 @@
     await reload();
   });
 
+  // โปสเตอร์ QR แยกสี: QR พาไปลิงก์สมัครของสีนั้น (#/poster/T1)
   PAGES.poster = {
-    roles: ['admin'],
+    roles: ['admin', 'captain'],
+    async load(parts) {
+      if (ROLE === 'admin') {
+        await loadAdmin();
+        const t = S.admin.teams.find((x) => x.id === parts[1]) || S.admin.teams[0];
+        S.view.poster = { team: t, joinKey: t.joinKey };
+      } else {
+        S.cap = await call('captainData');
+        S.view.poster = { team: S.cap.team, joinKey: S.cap.joinKey };
+      }
+    },
     view() {
-      const ev = S.boot.event;
-      return `<div class="no-print" style="max-width:560px;margin:16px auto 0;padding:0 16px;display:flex;gap:10px"><a class="btn" href="#/settings">${ic('back', 'sm')} กลับ</a><button class="btn primary" data-act="print">${ic('print', 'sm')} พิมพ์</button></div>
+      const ev = S.boot.event, P = S.view.poster, url = BASE + '?join=' + P.joinKey;
+      return `<div class="no-print" style="max-width:560px;margin:16px auto 0;padding:0 16px;display:flex;gap:10px"><a class="btn" href="#/${ROLE === 'admin' ? 'settings' : 'captain'}">${ic('back', 'sm')} กลับ</a><button class="btn primary" data-act="print">${ic('print', 'sm')} พิมพ์</button></div>
         <div class="poster"><div class="logo" style="background:#fff;color:var(--primary)">${ic('trophy', 'lg')}</div>
-          <div>${esc(ev.name)} ปีการศึกษา ${esc(ev.year)}</div><h1>สแกนเพื่อสมัครแข่งกีฬา</h1>
-          <div class="qr">${qrSvg(BASE, 7)}</div>
+          <div>${esc(ev.name)} ปีการศึกษา ${esc(ev.year)}</div>
+          <div style="background:${esc(P.team.color)};color:#fff;font-weight:700;font-size:22px;padding:6px 22px;border-radius:999px;border:3px solid #fff">สี${esc(P.team.name)}</div>
+          <h1>สแกนเพื่อสมัครแข่งกีฬา</h1>
+          <div class="qr">${qrSvg(url, 7)}</div>
+          <div class="xs" style="opacity:.85">QR นี้สมัครได้เฉพาะนักเรียนสี${esc(P.team.name)}</div>
           <div>1. สแกน  2. เลือกห้องและชื่อ  3. เลือกกีฬา  4. กรอกสมาชิก</div>
           <div class="dl">ปิดรับสมัคร ${fmt(ev.deadline)}</div><div class="xs" style="opacity:.8">${esc(ev.school)}</div></div>${demoTag()}`;
     }
@@ -1154,7 +1191,7 @@
 
   const HELP = [
     ['student', 'นักเรียน', [
-      'สแกน QR บนโปสเตอร์ หรือเปิดเว็บ แล้วกด <b>สมัครแข่งกีฬา</b>',
+      'สแกน <b>QR ของสีตัวเอง</b> (หรือเปิดลิงก์สมัครที่ประธานสีส่งในกลุ่มสี) แล้วกด <b>สมัครแข่งกีฬา</b>',
       'เลือก <b>ชั้น/ห้อง</b> และ <b>ชื่อของตัวเอง</b> ระบบเลือกสีให้ตามห้องอัตโนมัติ',
       'เลือกกีฬา: <b>สร้างทีม</b> (สีเรายังไม่มีคนส่ง คุณจะเป็นตัวแทนทีม) · <b>ดูทีม</b> (มีคนส่งแล้ว ติดต่อตัวแทนทีม) · <b>สมัครตัวเอง</b> (กีฬาบุคคล)',
       'พิมพ์ชื่อหรือห้องเพื่อค้นเพื่อนสีเดียวกัน → <b>+ เพิ่ม</b> เลือก จริง/สำรอง → <b>ส่งรายชื่อ</b>',
@@ -1168,6 +1205,7 @@
     ], 'นัดที่แข่งไปแล้วยังเก็บชื่อเดิม คนที่ได้ลงแข่งแล้วยังได้เกียรติบัตร'],
     ['captain', 'ประธานสี', [
       'เปิด <b>ลิงก์ประธานสี</b> ที่ครูส่งให้ แล้วบุ๊กมาร์กไว้ (อย่าส่งต่อ)',
+      'ส่ง <b>ลิงก์สมัครของสี</b> หรือพิมพ์ <b>โปสเตอร์ QR ของสี</b> (การ์ดด้านบนของหน้าประธานสี) ในกลุ่มสีตัวเองเท่านั้น',
       '<b>การเปลี่ยนตัว</b>: เห็นทุกครั้งที่ตัวแทนทีมเปลี่ยน ถ้าไม่เหมาะสมกด <b>ย้อนกลับ</b>',
       '<b>ทีมทั้งหมด</b>: กด <b>เปิด</b> เพื่อดู อนุมัติ แก้รายชื่อ หรือ <b>ออกรหัสใหม่</b> เมื่อรหัสหาย/หลุด',
       '<b>ยังไม่ส่ง</b>: กีฬาที่สีเรายังไม่มีทีม ตามเพื่อนให้สแกน QR',
@@ -1181,7 +1219,7 @@
     ], 'บันทึกผิดแก้ได้ ถ้านัดถัดไปยังไม่ได้แข่ง'],
     ['admin', 'แอดมิน (ครู)', [
       'ใน Google Sheet ใส่ห้อง (<b>Classes</b>) นักเรียน (<b>Students</b>) และชื่อประธานสี (<b>Teams</b> คอลัมน์ captainName)',
-      '<b>ตั้งค่า & ลิงก์</b>: ตั้งวันปิดรับสมัคร แก้รายการกีฬา ส่งลิงก์ประธานสี/กรรมการ พิมพ์ <b>โปสเตอร์ QR</b>',
+      '<b>ตั้งค่า & ลิงก์</b>: ตั้งวันปิดรับสมัคร แก้รายการกีฬา ส่งลิงก์ประธานสี/กรรมการ และลิงก์สมัคร/โปสเตอร์ QR <b>แยกตามสี</b>',
       'หลังปิดรับสมัคร: <b>ลงทะเบียน</b> ตรวจ/อนุมัติ → <b>สายการแข่งขัน</b> จับสลาก แล้วกดการ์ดนัดใส่เวลา/สนาม',
       'วันแข่ง: กรรมการบันทึกผล หรือแอดมินบันทึกที่ <b>บันทึกผล</b>',
       'หลังแข่ง: <b>สรุปผล & เกียรติบัตร</b> → สร้างรายชื่อ → ดาวน์โหลด CSV หรือสร้าง PDF จาก Google Slides'
@@ -1218,7 +1256,8 @@
       return mobileShell('โหมดทดลอง', `
         ${note('warning', 'info', 'ยังไม่ได้เชื่อม Google Sheet — ข้อมูลตัวอย่างเก็บในเบราว์เซอร์นี้เท่านั้น ลองสลับบทบาทได้จากลิงก์ด้านล่าง')}
         <b>เปิดในฐานะ…</b><div class="list">
-          ${go('นักเรียน (สแกน QR)', '', 'สมัคร / เปิดทีมด้วยรหัส / ดูสาย')}
+          ${go('หน้าเว็บสาธารณะ', '', 'ดูสาย / ผล / เปิดทีมด้วยรหัส (สมัครไม่ได้)')}
+          ${k.joinKeys.map((j, i) => go('นักเรียนสี' + names[i] + ' (QR ของสี)', '?join=' + j, 'สมัครได้เฉพาะห้องของสีนี้')).join('')}
           ${k.captainKeys.map((c, i) => go('ประธานสี' + names[i], '?captain=' + c, 'อนุมัติรายชื่อ / เปลี่ยนตัว')).join('')}
           ${go('กรรมการ', '?ref=' + k.refereeKey, 'บันทึกผลบนมือถือ')}
           ${go('แอดมิน', '?admin=' + k.adminKey, 'จัดสาย / ผล / เกียรติบัตร / ตั้งค่า')}</div>

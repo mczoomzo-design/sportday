@@ -13,7 +13,7 @@
 var Api = (function () {
   var TABLES = {
     Settings: ['id', 'value', 'description'],
-    Teams: ['id', 'name', 'color', 'captainKey', 'captainName'],
+    Teams: ['id', 'name', 'color', 'captainKey', 'captainName', 'joinKey'],
     Classes: ['id', 'teamId'],
     Students: ['id', 'prefix', 'firstName', 'lastName', 'classRoom', 'number', 'gender'],
     Sports: ['id', 'name', 'type', 'format', 'gender', 'level', 'minPlayers', 'maxPlayers', 'venue', 'status', 'order'],
@@ -92,6 +92,15 @@ var Api = (function () {
     });
   }
 
+  // สีที่ยังไม่มีรหัสลิงก์สมัคร (ชีตที่ติดตั้งก่อนมีฟีเจอร์นี้) สร้างให้อัตโนมัติ
+  function ensureJoinKeys() {
+    var teams = Db.all('Teams'), missing = teams.filter(function (t) { return !t.joinKey; });
+    if (!missing.length) return teams;
+    if (Db.ensureHeader) Db.ensureHeader('Teams');
+    missing.forEach(function (t) { Db.update('Teams', t.id, { joinKey: Seed.randomKey(10) }); });
+    return Db.all('Teams');
+  }
+
   function activeAthletes(regId) {
     return Db.all('Athletes').filter(function (a) { return a.registrationId === regId && a.active === 'Y'; });
   }
@@ -117,7 +126,23 @@ var Api = (function () {
       if (String(p.refKey) === String(s.refereeKey)) return { role: 'referee', actor: 'กรรมการ', via: 'ลิงก์กรรมการ' };
       fail('ลิงก์กรรมการไม่ถูกต้อง');
     }
+    // ลิงก์สมัครของแต่ละสี (?join=...) สมัครได้เฉพาะห้อง/นักเรียนของสีนั้น
+    if (p.joinKey) {
+      var jt = Db.all('Teams').filter(function (x) { return x.joinKey && String(x.joinKey) === String(p.joinKey); })[0];
+      if (!jt) fail('ลิงก์สมัครของสีไม่ถูกต้อง ขอลิงก์ใหม่จากประธานสี');
+      return { role: 'public', joinTeamId: jt.id };
+    }
     return { role: 'public' };
+  }
+
+  // ใช้ข้อมูล/สมัครให้สีนี้ได้ไหม: แอดมินทุกสี, ประธานสีและลิงก์สมัครเฉพาะสีตัวเอง, รหัสทีมเฉพาะสีของทีมนั้น
+  function needTeam(p, a, teamId) {
+    var ok = a.role === 'admin' || (a.role === 'captain' && a.teamId === teamId) || (a.joinTeamId && a.joinTeamId === teamId);
+    if (!ok && p.code) {
+      var h = hashCode(p.code);
+      ok = Db.all('Registrations').some(function (r) { return r.codeHash === h && r.teamId === teamId; });
+    }
+    if (!ok) fail('ลิงก์นี้ใช้ได้เฉพาะสีของตัวเอง ใช้ลิงก์สมัครของสีที่ได้จากประธานสี');
   }
 
   function need(a, roles) {
@@ -270,6 +295,7 @@ var Api = (function () {
         closed: isClosed(s), points: points(s)
       },
       role: a.role, myTeam: me,
+      joinTeam: a.joinTeamId ? publicTeam(find('Teams', a.joinTeamId)) : null,
       teams: teams.map(publicTeam),
       classes: Db.all('Classes'),
       sports: Db.all('Sports').sort(function (x, y) { return Number(x.order || 0) - Number(y.order || 0); }),
@@ -289,14 +315,16 @@ var Api = (function () {
     };
   };
 
-  H.students = function (p) {
+  H.students = function (p, a) {
+    needTeam(p, a, classTeam()[p.classRoom]);
     return Db.all('Students').filter(function (s) { return s.classRoom === p.classRoom; })
       .sort(function (x, y) { return Number(x.number) - Number(y.number); })
       .map(function (s) { return { id: s.id, name: Core.fullName(s), number: s.number, gender: s.gender, classRoom: s.classRoom }; });
   };
 
   // รายชื่อนักเรียนทั้งสี สำหรับค้นหาตอนกรอกสมาชิก พร้อมเหตุผลถ้าลงกีฬานี้ไม่ได้
-  H.teamStudents = function (p) {
+  H.teamStudents = function (p, a) {
+    needTeam(p, a, p.teamId);
     var sport = find('Sports', p.sportId), ct = classTeam(), entries = {};
     Db.all('Athletes').forEach(function (a) { if (a.active === 'Y') (entries[a.studentId] = entries[a.studentId] || []).push(a.sportId); });
     var sports = byId('Sports');
@@ -330,6 +358,7 @@ var Api = (function () {
     var rep = find('Students', String(p.repStudentId));
     var teamId = classTeam()[rep.classRoom];
     if (!teamId) fail('ห้อง ' + rep.classRoom + ' ยังไม่ได้กำหนดสี');
+    needTeam(p, a, teamId);
     var exist = Db.all('Registrations').filter(function (r) { return r.sportId === sport.id && r.teamId === teamId; })[0];
     if (exist) fail('สีนี้ส่งรายชื่อ' + sport.name + 'แล้ว (ตัวแทน: ' + exist.repName + ') ใช้รหัสแก้ไขทีมเพื่อแก้รายชื่อ');
     var members = cleanMembers(p.members);
@@ -346,6 +375,8 @@ var Api = (function () {
     var sport = openSportFor(p.sportId, a);
     var st = find('Students', String(p.studentId));
     var teamId = classTeam()[st.classRoom];
+    if (!teamId) fail('ห้อง ' + st.classRoom + ' ยังไม่ได้กำหนดสี');
+    needTeam(p, a, teamId);
     var reg = Db.all('Registrations').filter(function (r) { return r.sportId === sport.id && r.teamId === teamId; })[0];
     var code = '';
     var current = reg ? activeAthletes(reg.id) : [];
@@ -438,6 +469,7 @@ var Api = (function () {
     return {
       team: publicTeam(find('Teams', teamId)),
       actor: a.actor,
+      joinKey: ensureJoinKeys().filter(function (t) { return t.id === teamId; })[0].joinKey,
       registrations: Db.all('Registrations').filter(function (r) { return r.teamId === teamId; })
         .map(function (r) { var o = publicReg(r); o.count = counts[r.id] || 0; return o; }),
       requests: Db.all('SubRequests').filter(function (r) { return r.teamId === teamId; }).reverse(),
@@ -485,7 +517,7 @@ var Api = (function () {
     need(a, ['admin']);
     return {
       settings: Db.all('Settings'),
-      teams: Db.all('Teams'),
+      teams: ensureJoinKeys(),
       requests: Db.all('SubRequests').reverse().slice(0, 50),
       log: Db.all('ChangeLog').reverse().slice(0, 200),
       certificates: Db.all('Certificates'),

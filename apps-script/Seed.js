@@ -64,7 +64,10 @@ var Seed = (function () {
   function teams(opts) {
     opts = opts || {};
     return TEAMS.map(function (t, i) {
-      return { id: t[0], name: t[1], color: t[2], captainKey: opts.captainKeys ? opts.captainKeys[i] : randomKey(10), captainName: t[3] };
+      return {
+        id: t[0], name: t[1], color: t[2], captainKey: opts.captainKeys ? opts.captainKeys[i] : randomKey(10), captainName: t[3],
+        joinKey: opts.joinKeys ? opts.joinKeys[i] : randomKey(10)
+      };
     });
   }
 
