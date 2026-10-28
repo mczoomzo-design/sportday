@@ -140,7 +140,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('กีฬาสี')
     .addItem('1) ติดตั้งชีต (สร้างแท็บ + ค่าเริ่มต้น)', 'setup')
     .addItem('2) ใส่ข้อมูลตัวอย่าง (ห้อง/นักเรียน/การสมัคร)', 'setupDemoData')
-    .addItem('ดูลิงก์ทั้งหมด (แอดมิน/หัวหน้าสี/กรรมการ)', 'showLinks')
+    .addItem('ดูลิงก์ทั้งหมด (แอดมิน/ประธานสี/กรรมการ)', 'showLinks')
     .addToUi();
 }
 
@@ -183,7 +183,7 @@ function showLinks() {
   var site = s.siteUrl || 'https://<ชื่อผู้ใช้>.github.io/<ชื่อ repo>/';
   var lines = ['ลิงก์นักเรียน (ทำ QR): ' + site, '', 'แอดมิน: ' + site + '?admin=' + s.adminKey,
     'กรรมการบันทึกผล: ' + site + '?ref=' + s.refereeKey, ''];
-  Db.all('Teams').forEach(function (t) { lines.push('หัวหน้าสี' + t.name + ': ' + site + '?captain=' + t.captainKey); });
+  Db.all('Teams').forEach(function (t) { lines.push('ประธานสี' + t.name + ': ' + site + '?captain=' + t.captainKey); });
   lines.push('', 'URL ของ Web App (ใส่ใน config.js): ' + (ScriptApp.getService().getUrl() || 'ยังไม่ได้ Deploy'));
   SpreadsheetApp.getUi().alert(lines.join('\n'));
 }

@@ -6,7 +6,7 @@
  *
  * สิทธิ์ไม่ใช้การล็อกอิน แต่ดูจาก "รหัส/ลิงก์" ที่แนบมากับคำขอ:
  *   code        = รหัสแก้ไขทีม (ตัวแทนทีม)
- *   captainKey  = ลิงก์หัวหน้าสี
+ *   captainKey  = ลิงก์ประธานสี
  *   refKey      = ลิงก์กรรมการ (บันทึกผล)
  *   adminKey    = ลิงก์แอดมิน
  */
@@ -31,7 +31,7 @@ var Api = (function () {
   var SETTING_KEYS = ['eventName', 'schoolName', 'academicYear', 'regDeadline', 'pointsGold', 'pointsSilver',
     'pointsBronze', 'pointsHonor', 'certTemplateId', 'certFolderId', 'siteUrl'];
 
-  var ST = { pending: 'รออนุมัติ', approved: 'อนุมัติ', rejected: 'ไม่อนุมัติ' };
+  var ST = { pending: 'รออนุมัติ', approved: 'อนุมัติ', rejected: 'ไม่อนุมัติ', applied: 'มีผลแล้ว', reverted: 'ย้อนกลับแล้ว' };
 
   // ---------- ตัวช่วย ----------
 
@@ -110,8 +110,8 @@ var Api = (function () {
     }
     if (p.captainKey) {
       var t = Db.all('Teams').filter(function (x) { return x.captainKey && String(x.captainKey) === String(p.captainKey); })[0];
-      if (!t) fail('ลิงก์หัวหน้าสีไม่ถูกต้อง');
-      return { role: 'captain', teamId: t.id, actor: t.captainName || ('หัวหน้าสี' + t.name), via: 'ลิงก์หัวหน้าสี' };
+      if (!t) fail('ลิงก์ประธานสีไม่ถูกต้อง');
+      return { role: 'captain', teamId: t.id, actor: t.captainName || ('ประธานสี' + t.name), via: 'ลิงก์ประธานสี' };
     }
     if (p.refKey) {
       if (String(p.refKey) === String(s.refereeKey)) return { role: 'referee', actor: 'กรรมการ', via: 'ลิงก์กรรมการ' };
@@ -223,7 +223,7 @@ var Api = (function () {
     var sport = find('Sports', sportId);
     if (a.role !== 'admin' && a.role !== 'captain') {
       if (sport.status === 'ปิดรับ') fail('กีฬานี้ปิดรับสมัครแล้ว');
-      if (isClosed(settings())) fail('เลยกำหนดปิดรับสมัครแล้ว ติดต่อหัวหน้าสี');
+      if (isClosed(settings())) fail('เลยกำหนดปิดรับสมัครแล้ว ติดต่อประธานสี');
     }
     return sport;
   }
@@ -370,41 +370,64 @@ var Api = (function () {
 
   H.updateTeam = function (p, a) {
     var acc = regAccess(p, a), reg = acc.reg;
-    if (!acc.canEditNow) fail('เลยกำหนดปิดรับสมัครแล้ว ใช้ "ขอเปลี่ยนตัว" แทน');
+    if (!acc.canEditNow) fail('เลยกำหนดปิดรับสมัครแล้ว ใช้ปุ่ม "เปลี่ยนตัว" แทน');
     var sport = find('Sports', reg.sportId), members = cleanMembers(p.members);
     var warnings = checkRoster(members, rosterContext(sport, reg.teamId));
     var changes = applyRoster(reg, members);
     if (!changes.length) return teamDetail(reg, { canEdit: true, warnings: warnings });
     var patch = { updatedAt: nowIso() };
-    // ตัวแทนทีมแก้หลังอนุมัติแล้ว → ให้หัวหน้าสีตรวจใหม่
+    // ตัวแทนทีมแก้หลังอนุมัติแล้ว → ให้ประธานสีตรวจใหม่
     if (acc.isCode && reg.status === ST.approved) patch.status = ST.pending;
     Db.update('Registrations', reg.id, patch);
     log({ teamId: reg.teamId, registrationId: reg.id, actor: acc.actor, via: acc.via, action: 'แก้รายชื่อ', detail: changes.join(' • ') });
     return teamDetail(find('Registrations', reg.id), { canEdit: true, warnings: warnings });
   };
 
+  // สลับคนออก → คนเข้า (คนเข้าได้บทบาท จริง/สำรอง เดียวกับคนออก)
+  function swapAthlete(reg, outStudentId, inStudentId) {
+    var current = activeAthletes(reg.id);
+    var out = current.filter(function (x) { return x.studentId === outStudentId; })[0];
+    if (!out) fail('ผู้เล่นที่จะเปลี่ยนออกไม่ได้อยู่ในทีมแล้ว');
+    var members = current.filter(function (x) { return x.id !== out.id; })
+      .map(function (x) { return { studentId: x.studentId, role: x.role }; });
+    members.push({ studentId: inStudentId, role: out.role });
+    checkRoster(members, rosterContext(find('Sports', reg.sportId), reg.teamId));
+    applyRoster(reg, members);
+    Db.update('Registrations', reg.id, { updatedAt: nowIso() });
+  }
+
+  // ตัวแทนทีม (รหัสทีม) เปลี่ยนตัวได้ทุกเวลาและมีผลทันที ประธานสีเห็นในประวัติและย้อนกลับได้
   H.requestSub = function (p, a) {
     var acc = regAccess(p, a), reg = acc.reg;
     var out = activeAthletes(reg.id).filter(function (x) { return x.id === p.outAthleteId; })[0];
     if (!out) fail('ไม่พบผู้เล่นที่จะเปลี่ยนออก');
     var inSt = find('Students', String(p.inStudentId));
-    var sport = find('Sports', reg.sportId);
-    var members = activeAthletes(reg.id).filter(function (x) { return x.id !== out.id; })
-      .map(function (x) { return { studentId: x.studentId, role: x.role }; });
-    members.push({ studentId: inSt.id, role: out.role });
-    checkRoster(members, rosterContext(sport, reg.teamId));
     if (!String(p.reason || '').trim()) fail('กรุณาระบุเหตุผล');
+    swapAthlete(reg, out.studentId, inSt.id);
+    var now = nowIso();
     var req = {
       id: newId('Q'), registrationId: reg.id, teamId: reg.teamId, sportId: reg.sportId, outAthleteId: out.id, outName: out.fullName,
       inStudentId: inSt.id, inName: Core.fullName(inSt), effective: p.effective || 'นัดถัดไปเป็นต้นไป', reason: p.reason,
-      requestedBy: acc.actor + ' (' + acc.via + ')', status: ST.pending, createdAt: nowIso(), decidedBy: '', decidedAt: ''
+      requestedBy: acc.actor + ' (' + acc.via + ')', status: ST.applied, createdAt: now, decidedBy: '', decidedAt: ''
     };
     Db.insert('SubRequests', req);
-    log({ teamId: reg.teamId, registrationId: reg.id, actor: acc.actor, via: acc.via, action: 'ขอเปลี่ยนตัว',
+    log({ teamId: reg.teamId, registrationId: reg.id, actor: acc.actor, via: acc.via, action: 'เปลี่ยนตัว',
       detail: out.fullName + ' → ' + req.inName + ' (' + req.reason + ')' });
-    // หัวหน้าสี/แอดมินขอเองถือว่าอนุมัติทันที
-    if (!acc.isCode) H.decideSub({ requestId: req.id, approve: true }, a);
     return teamDetail(reg, { canEdit: acc.canEditNow });
+  };
+
+  // ประธานสี/แอดมินย้อนการเปลี่ยนตัว: คนเดิมกลับเข้าทีม คนที่เข้ามาแทนออก
+  H.undoSub = function (p, a) {
+    need(a, ['captain', 'admin']);
+    var req = find('SubRequests', p.requestId);
+    if (a.role === 'captain' && req.teamId !== a.teamId) fail('รายการนี้ไม่ใช่สีของคุณ');
+    if (req.status !== ST.applied) fail('ย้อนกลับได้เฉพาะการเปลี่ยนตัวที่มีผลแล้ว');
+    var reg = find('Registrations', req.registrationId);
+    swapAthlete(reg, req.inStudentId, find('Athletes', req.outAthleteId).studentId);
+    Db.update('SubRequests', req.id, { status: ST.reverted, decidedBy: a.actor, decidedAt: nowIso() });
+    log({ teamId: req.teamId, registrationId: req.registrationId, actor: a.actor, via: a.via, action: 'ย้อนการเปลี่ยนตัว',
+      detail: req.inName + ' → ' + req.outName });
+    return { ok: true };
   };
 
   H.captainData = function (p, a) {
@@ -427,17 +450,10 @@ var Api = (function () {
     var req = find('SubRequests', p.requestId);
     if (a.role === 'captain' && req.teamId !== a.teamId) fail('คำขอนี้ไม่ใช่สีของคุณ');
     if (req.status !== ST.pending) fail('คำขอนี้ถูกตัดสินไปแล้ว');
+    // คำขอแบบเก่าที่ยังค้าง (ก่อนเปลี่ยนเป็นมีผลทันที)
     var reg = find('Registrations', req.registrationId);
-    if (p.approve) {
-      var members = activeAthletes(reg.id).filter(function (x) { return x.id !== req.outAthleteId; })
-        .map(function (x) { return { studentId: x.studentId, role: x.role }; });
-      var out = find('Athletes', req.outAthleteId);
-      members.push({ studentId: req.inStudentId, role: out.role });
-      checkRoster(members, rosterContext(find('Sports', reg.sportId), reg.teamId));
-      applyRoster(reg, members);
-      Db.update('Registrations', reg.id, { updatedAt: nowIso() });
-    }
-    Db.update('SubRequests', req.id, { status: p.approve ? ST.approved : ST.rejected, decidedBy: a.actor, decidedAt: nowIso() });
+    if (p.approve) swapAthlete(reg, find('Athletes', req.outAthleteId).studentId, req.inStudentId);
+    Db.update('SubRequests', req.id, { status: p.approve ? ST.applied : ST.rejected, decidedBy: a.actor, decidedAt: nowIso() });
     log({ teamId: req.teamId, registrationId: req.registrationId, actor: a.actor, via: a.via,
       action: p.approve ? 'อนุมัติเปลี่ยนตัว' : 'ไม่อนุมัติเปลี่ยนตัว', detail: req.outName + ' → ' + req.inName });
     return { ok: true };
@@ -470,7 +486,7 @@ var Api = (function () {
     return {
       settings: Db.all('Settings'),
       teams: Db.all('Teams'),
-      requests: Db.all('SubRequests').filter(function (r) { return r.status === ST.pending; }),
+      requests: Db.all('SubRequests').reverse().slice(0, 50),
       log: Db.all('ChangeLog').reverse().slice(0, 200),
       certificates: Db.all('Certificates'),
       studentCount: Db.all('Students').length,

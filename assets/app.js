@@ -3,7 +3,7 @@
  *
  * บทบาทดูจากลิงก์ที่เปิด ไม่มีการล็อกอิน:
  *   index.html              นักเรียน (สแกน QR)
- *   index.html?captain=...  หัวหน้าสี
+ *   index.html?captain=...  ประธานสี
  *   index.html?ref=...      กรรมการบันทึกผล
  *   index.html?admin=...    แอดมิน
  * หน้าย่อยใช้ hash เช่น #/register, #/t/R7K2Q9, #/bracket/SP1
@@ -66,7 +66,7 @@
   const sportOf = (id) => S.boot.sports.find((s) => s.id === id);
   const classTeam = (room) => (S.boot.classes.find((c) => c.id === room) || {}).teamId;
   const pill = (t, k = 'muted') => `<span class="pill ${k}">${esc(t)}</span>`;
-  const stPill = (st) => pill(st, st === 'อนุมัติ' ? 'success' : st === 'ไม่อนุมัติ' ? 'danger' : 'warning');
+  const stPill = (st) => pill(st, st === 'อนุมัติ' || st === 'มีผลแล้ว' ? 'success' : st === 'ไม่อนุมัติ' ? 'danger' : st === 'ย้อนกลับแล้ว' ? 'muted' : 'warning');
   const note = (kind, icon, html) => `<div class="note ${kind}">${ic(icon)}<div>${html}</div></div>`;
 
   function chip(id) {
@@ -196,7 +196,8 @@
     return `<div class="admin"><aside class="side no-print">
       <div class="brand"><div class="logo">${ic('trophy')}</div><div><b>${esc(ev.name)} ${esc(ev.year)}</b><div class="xs muted">ระบบจัดการการแข่งขัน</div></div></div>
       <nav>${ADMIN_NAV.map(([k, i, l]) => `<a href="#/${k}" class="${k === active ? 'on' : ''}">${ic(i)}${l}</a>`).join('')}
-        <a href="#/">${ic('users')}หน้าของนักเรียน</a></nav>
+        <a href="#/">${ic('users')}หน้าของนักเรียน</a>
+        <a href="#/help" class="${active === 'help' ? 'on' : ''}">${ic('info')}วิธีใช้งาน</a></nav>
       <div class="side-foot">${Client.demo ? '<b>โหมดทดลอง</b><br>ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น' : '<b>เชื่อม Google Sheet แล้ว</b><br>ข้อมูลทั้งหมดอยู่ในชีต'}</div>
     </aside><main class="main">
       <div class="page-head"><div><h1>${esc(title)}</h1><p class="muted">${sub}</p></div><div class="actions">${actions || ''}<button class="icon-btn" data-act="reload" title="โหลดข้อมูลใหม่">${ic('refresh')}</button></div></div>
@@ -363,7 +364,7 @@
     view() {
       const ev = S.boot.event;
       const item = (href, i, t, d, dis) => `<a href="${href}" class="${dis ? 'dis' : ''}"><span class="mi">${ic(i)}</span><span class="grow"><b>${t}</b><span class="small muted">${d}</span></span></a>`;
-      const roleLink = ROLE === 'captain' ? item('#/captain', 'users', 'หน้าหัวหน้าสี', 'อนุมัติรายชื่อ / คำขอเปลี่ยนตัว')
+      const roleLink = ROLE === 'captain' ? item('#/captain', 'users', 'หน้าประธานสี', 'อนุมัติรายชื่อ / ดูการเปลี่ยนตัว')
         : ROLE === 'referee' ? item('#/ref', 'clipboard', 'บันทึกผลการแข่งขัน', 'สำหรับกรรมการ')
           : ROLE === 'admin' ? item('#/admin', 'settings', 'หน้าแอดมิน', 'จัดการทั้งระบบ') : '';
       return mobileShell('', `
@@ -372,7 +373,8 @@
           ${ev.closed ? pill('ปิดรับสมัครแล้ว', 'danger') : pill('ปิดรับสมัคร ' + fmt(ev.deadline), 'warning')}</section>
         <div class="menu">${roleLink}
           ${item('#/register', 'plus', 'สมัครแข่งกีฬา', 'เลือกห้องและชื่อ แล้วเลือกกีฬา', ev.closed)}
-          ${item('#/team', 'key', 'มีรหัสแก้ไขทีม', 'แก้รายชื่อ / ขอเปลี่ยนตัวนักกีฬา')}
+          ${item('#/team', 'key', 'มีรหัสแก้ไขทีม', 'แก้รายชื่อ / เปลี่ยนตัวนักกีฬา')}
+          ${item('#/help', 'info', 'วิธีใช้งาน', 'คู่มือสั้น ๆ แยกตามบทบาท')}
           ${item('#/brackets', 'bracket', 'สายการแข่งขัน', 'สีไหนเจอสีไหน ใครเข้ารอบ')}
           ${item('#/results', 'trophy', 'ผลการแข่งขัน', 'ตารางเหรียญและอันดับแต่ละกีฬา')}
         </div>`, { noBar: true });
@@ -478,7 +480,7 @@
     const t = await call('publicTeam', { registrationId: el.dataset.id });
     const reg = t.registration;
     modal(`<h2>${esc(sportOf(reg.sportId).name)}</h2><div class="row">${chip(reg.teamId)} ${stPill(reg.status)}</div>
-      <p class="small muted">ตัวแทนทีม: ${esc(reg.repName)} — ถ้าอยากเข้าทีม ให้ติดต่อตัวแทนทีมหรือหัวหน้าสี</p>
+      <p class="small muted">ตัวแทนทีม: ${esc(reg.repName)} — ถ้าอยากเข้าทีม ให้ติดต่อตัวแทนทีมหรือประธานสี</p>
       <div class="list">${t.athletes.map((a) => `<div class="li"><div class="who">${esc(a.fullName)}<div class="xs muted">${esc(a.classRoom)}</div></div>${pill(a.role)}</div>`).join('')}</div>
       <button class="btn" data-act="modal-close">ปิด</button>`);
   });
@@ -526,20 +528,20 @@
         <div class="code-big">${esc(res.code)}</div>
         <div class="xs muted" style="word-break:break-all">ลิงก์แก้ไข: ${esc(link)}</div>
         <div class="row"><button class="btn grow" data-act="copy" data-v="${esc(res.code)}">${ic('copy', 'sm')} คัดลอกรหัส</button><button class="btn grow" data-act="copy" data-v="${esc(link)}">${ic('copy', 'sm')} คัดลอกลิงก์</button></div>
-        <p class="xs muted">แนะนำให้แคปหน้าจอนี้เก็บไว้ ถ้ารหัสหาย ให้หัวหน้าสีออกรหัสใหม่</p></div>` : '';
+        <p class="xs muted">แนะนำให้แคปหน้าจอนี้เก็บไว้ ถ้ารหัสหาย ให้ประธานสีออกรหัสใหม่</p></div>` : '';
     return mobileShell('ส่งเรียบร้อย', `${stepsBar(4)}
-      <div class="note success" style="font-size:15px">${ic('check')}<div><b>${res.code ? 'ส่งรายชื่อแล้ว' : 'สมัครสำเร็จ'}</b><br>${esc(res.sport.name)} • สี${esc(res.team.name)} • ${res.athletes.length} คน — รอหัวหน้าสีตรวจ</div></div>
+      <div class="note success" style="font-size:15px">${ic('check')}<div><b>${res.code ? 'ส่งรายชื่อแล้ว' : 'สมัครสำเร็จ'}</b><br>${esc(res.sport.name)} • สี${esc(res.team.name)} • ${res.athletes.length} คน — รอประธานสีตรวจ</div></div>
       ${codeCard}
       ${(res.warnings || []).map((w) => note('warning', 'alert', esc(w))).join('')}
       <div class="list">${res.athletes.map((a) => `<div class="li"><div class="who">${esc(a.fullName)}<div class="xs muted">${esc(a.classRoom)}</div></div>${pill(a.role)}</div>`).join('')}</div>
       <div class="row">${res.code ? `<a class="btn primary grow" href="#/t/${raw}">ไปหน้าทีม</a>` : ''}<a class="btn grow" href="#/">กลับหน้าแรก</a></div>`, { back: '' });
   }
 
-  // ---------- หน้าทีม (เปิดด้วยรหัส / หัวหน้าสี / แอดมิน) ----------
+  // ---------- หน้าทีม (เปิดด้วยรหัส / ประธานสี / แอดมิน) ----------
 
   PAGES.team = {
     view() {
-      return mobileShell('เปิดทีมด้วยรหัส', `${codeBox()}<p class="small muted">รหัสแก้ไขทีมได้ตอนส่งรายชื่อครั้งแรก ใครมีรหัสนี้แก้รายชื่อทีมได้ ถ้าหาย ให้หัวหน้าสีออกรหัสใหม่</p>`, { back: '' });
+      return mobileShell('เปิดทีมด้วยรหัส', `${codeBox()}<p class="small muted">รหัสแก้ไขทีมได้ตอนส่งรายชื่อครั้งแรก ใครมีรหัสนี้แก้รายชื่อทีมได้ ถ้าหาย ให้ประธานสีออกรหัสใหม่</p>`, { back: '' });
     }
   };
 
@@ -570,9 +572,9 @@
         <div class="xs muted">ตัวแทน: ${esc(reg.repName)} • ส่งเมื่อ ${fmt(reg.createdAt)}</div></div>${chip(T.team.id)}</div>
       <div class="row gap">${stPill(reg.status)} ${pill(T.athletes.length + '/' + sp.maxPlayers + ' คน')} ${T.via ? pill('เปิดด้วย ' + T.via, 'primary') : ''}</div></div>`;
     let banner;
-    if (!T.code) banner = note('primary', 'info', `คุณแก้ไขในฐานะ${ROLE === 'admin' ? 'แอดมิน' : 'หัวหน้าสี'} — แก้รายชื่อและเปลี่ยนตัวได้ทันที`);
-    else if (T.canEdit) banner = note('primary', 'info', `แก้รายชื่อได้ทันทีถึง ${fmt(T.deadline)} หลังจากนั้นต้องขอเปลี่ยนตัวให้หัวหน้าสีอนุมัติ`);
-    else banner = note('warning', 'alert', 'เลยกำหนดปิดรับสมัครแล้ว การเปลี่ยนตัวต้องส่งคำขอให้หัวหน้าสีอนุมัติ');
+    if (!T.code) banner = note('primary', 'info', `คุณแก้ไขในฐานะ${ROLE === 'admin' ? 'แอดมิน' : 'ประธานสี'} — แก้รายชื่อและเปลี่ยนตัวได้ทันที`);
+    else if (T.canEdit) banner = note('primary', 'info', `แก้รายชื่อได้ถึง ${fmt(T.deadline)} • เปลี่ยนตัวได้ทุกเวลา มีผลทันที (ประธานสีเห็นประวัติทุกครั้ง)`);
+    else banner = note('warning', 'alert', 'เลยกำหนดปิดรับสมัครแล้ว เพิ่ม/ลบรายชื่อไม่ได้ แต่ยังกด "เปลี่ยนตัว" ได้ทันที');
     let body;
     if (mode === 'edit') body = teamEditHtml();
     else if (mode === 'sub') body = subFormHtml();
@@ -585,11 +587,11 @@
     const staff = !T.code;
     const pending = T.registration.status === 'รออนุมัติ';
     const actions = `<div class="row">${T.canEdit ? `<button class="btn grow" data-act="team-mode" data-v="edit">แก้ไขรายชื่อ</button>` : ''}
-      <button class="btn primary grow" data-act="team-mode" data-v="sub">${ic('swap', 'sm')} ${staff ? 'เปลี่ยนตัว' : 'ขอเปลี่ยนตัว'}</button></div>
+      <button class="btn primary grow" data-act="team-mode" data-v="sub">${ic('swap', 'sm')} เปลี่ยนตัว</button></div>
       ${staff ? `<div class="row">${pending ? `<button class="btn success grow" data-act="reg-status" data-id="${T.registration.id}" data-v="1">อนุมัติรายชื่อ</button><button class="btn danger" data-act="reg-status" data-id="${T.registration.id}" data-v="0">ไม่อนุมัติ</button>` : ''}
         <button class="btn" data-act="reset-code" data-id="${T.registration.id}">${ic('key', 'sm')} ออกรหัสใหม่</button></div>` : ''}`;
     const members = T.athletes.slice().sort((a, b) => (a.role === b.role ? 0 : a.role === 'ตัวจริง' ? -1 : 1));
-    const reqs = T.requests.length ? `<b>คำขอเปลี่ยนตัว</b><div class="list">${T.requests.map((q) => `<div class="li"><div class="who">
+    const reqs = T.requests.length ? `<b>ประวัติการเปลี่ยนตัว</b><div class="list">${T.requests.map((q) => `<div class="li"><div class="who">
         <div class="small"><b>${esc(q.outName)}</b> → <b>${esc(q.inName)}</b></div><div class="xs muted">${esc(q.effective)} • ${esc(q.reason)} • ${fmt(q.createdAt)}</div></div>${stPill(q.status)}</div>`).join('')}</div>` : '';
     const removed = T.removed.length ? `<details><summary class="small muted">เปลี่ยนตัวออก/ลบแล้ว ${T.removed.length} คน</summary><div class="list" style="margin-top:8px">${T.removed.map((a) => `<div class="li"><div class="who small">${esc(a.fullName)} <span class="xs muted">${esc(a.classRoom)}</span></div><span class="xs muted">${fmt(a.removedAt)}</span></div>`).join('')}</div></details>` : '';
     const log = T.log.length ? `<b>ประวัติการแก้ไข</b><div class="list">${T.log.map((l) => `<div class="li log-item"><div class="who"><b>${esc(l.action)}</b> — ${esc(l.detail)}<div class="xs muted">${fmt(l.time)} • ${esc(l.actor)} (${esc(l.via)})</div></div></div>`).join('')}</div>` : '';
@@ -641,7 +643,7 @@
         <input data-input="sub-detail" value="${esc(v.detail)}" placeholder="รายละเอียด (ถ้ามี) เช่น ข้อเท้าพลิกระหว่างซ้อม"></div>
       ${T.code ? `<label class="field"><span>ชื่อผู้ขอ</span><input data-input="sub-actor" value="${esc(v.actor)}"></label>` : ''}
       </div>
-      <div class="row"><button class="btn" data-act="team-mode" data-v="view">ยกเลิก</button><button class="btn primary grow" data-act="sub-submit">${T.code ? 'ส่งคำขอเปลี่ยนตัว' : 'เปลี่ยนตัวทันที'}</button></div>`;
+      <div class="row"><button class="btn" data-act="team-mode" data-v="view">ยกเลิก</button><button class="btn primary grow" data-act="sub-submit">เปลี่ยนตัว (มีผลทันที)</button></div>`;
   }
 
   CHANGE['sub-out'] = (el) => { S.view.sub.outId = el.value; };
@@ -661,7 +663,7 @@
     }));
     S.team = Object.assign(res, { code: S.team.code, via: S.team.via });
     S.view.teamMode = 'view';
-    toast(S.team.code ? 'ส่งคำขอแล้ว รอหัวหน้าสีอนุมัติ' : 'เปลี่ยนตัวเรียบร้อย');
+    toast('เปลี่ยนตัวเรียบร้อย มีผลทันที');
     paint();
   });
 
@@ -688,42 +690,54 @@
     }
   };
 
-  // ========== หัวหน้าสี ==========
+  // ========== ประธานสี ==========
 
   PAGES.captain = {
     roles: ['captain'],
     async load() { S.cap = await call('captainData'); S.view.capTab = S.view.capTab || 'req'; },
     view() {
       const C = S.cap, tab = S.view.capTab;
-      const pend = C.requests.filter((r) => r.status === 'รออนุมัติ');
       const pendRegs = C.registrations.filter((r) => r.status === 'รออนุมัติ');
       const missing = S.boot.sports.filter((sp) => !C.registrations.some((r) => r.sportId === sp.id));
-      const tabs = [['req', `คำขอเปลี่ยนตัว (${pend.length})`], ['teams', `ทีมทั้งหมด (${C.registrations.length}) ${pendRegs.length ? '• รอ ' + pendRegs.length : ''}`], ['missing', `ยังไม่ส่ง (${missing.length})`], ['log', 'ประวัติ']];
+      const tabs = [['req', `การเปลี่ยนตัว (${C.requests.length})`], ['teams', `ทีมทั้งหมด (${C.registrations.length}) ${pendRegs.length ? '• รอ ' + pendRegs.length : ''}`], ['missing', `ยังไม่ส่ง (${missing.length})`], ['log', 'ประวัติ']];
       let body = '';
-      if (tab === 'req') body = requestCards(C.requests, true);
+      if (tab === 'req') body = note('primary', 'info', 'ตัวแทนทีมเปลี่ยนตัวได้เองและมีผลทันที ถ้าไม่เหมาะสมให้กด "ย้อนกลับ"') + subCards(C.requests);
       if (tab === 'teams') body = regList(C.registrations);
       if (tab === 'missing') body = `<div class="list">${missing.map((sp) => `<div class="li"><div class="who"><b>${esc(sp.name)}</b><div class="xs muted">${esc(sp.type)} • ${sp.minPlayers}–${sp.maxPlayers} คน</div></div>${pill('ยังไม่มีผู้ส่ง', 'warning')}</div>`).join('') || '<div class="empty">ส่งครบทุกกีฬาแล้ว</div>'}</div>
         ${note('primary', 'info', 'แจ้งนักเรียนสแกน QR แล้วกด "สร้างทีม" ในกีฬานั้น')}`;
       if (tab === 'log') body = logList(C.log);
-      return mobileShell('หัวหน้าสี' + C.team.name, `
-        <div class="card row">${chip(C.team.id)}<div class="grow small muted">เปิดจากลิงก์หัวหน้าสี (ลิงก์ลับ ไม่ต้องล็อกอิน) • ${esc(C.actor)}</div></div>
+      return mobileShell('ประธานสี' + C.team.name, `
+        <div class="card row">${chip(C.team.id)}<div class="grow small muted">เปิดจากลิงก์ประธานสี (ลิงก์ลับ ไม่ต้องล็อกอิน) • ${esc(C.actor)}</div></div>
         <div class="tabs">${tabs.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="cap-tab" data-v="${k}">${l}</button>`).join('')}</div>${body}`,
-      { back: '', wide: true, right: `<button class="icon-btn" data-act="reload">${ic('refresh')}</button>` });
+      { back: '', wide: true, right: `<a class="icon-btn" href="#/help" title="วิธีใช้งาน">${ic('info')}</a><button class="icon-btn" data-act="reload">${ic('refresh')}</button>` });
     }
   };
   ACT['cap-tab'] = (el) => { S.view.capTab = el.dataset.v; paint(); };
 
-  function requestCards(list, withPast) {
-    const pend = list.filter((r) => r.status === 'รออนุมัติ'), past = list.filter((r) => r.status !== 'รออนุมัติ');
-    const card = (q) => `<div class="card stack"><div class="row"><div class="grow"><b>${esc(sportOf(q.sportId).name)}</b> ${chip(q.teamId)}
-        <div class="xs muted">ขอโดย ${esc(q.requestedBy)} • ${fmt(q.createdAt)}</div></div>${stPill(q.status)}</div>
+  // การเปลี่ยนตัว: มีผลทันที ประธานสี/แอดมินกด "ย้อนกลับ" ได้ (คำขอแบบเก่าที่ค้าง ยังอนุมัติได้)
+  function subCards(list) {
+    const card = (q) => {
+      let foot;
+      if (q.status === 'มีผลแล้ว') foot = `<div class="row"><span class="xs muted grow">${q.decidedBy ? 'อนุมัติโดย ' + esc(q.decidedBy) : 'มีผลทันทีที่ตัวแทนทีมกด'}</span><button class="btn sm danger" data-act="undo-sub" data-id="${q.id}">ย้อนกลับ</button></div>`;
+      else if (q.status === 'รออนุมัติ') foot = `<div class="row" style="justify-content:flex-end"><button class="btn danger" data-act="decide" data-id="${q.id}" data-v="0">ไม่อนุมัติ</button><button class="btn primary" data-act="decide" data-id="${q.id}" data-v="1">อนุมัติ</button></div>`;
+      else foot = `<div class="xs muted">${esc(q.status)}โดย ${esc(q.decidedBy)} • ${fmt(q.decidedAt)}</div>`;
+      return `<div class="card stack"><div class="row"><div class="grow"><b>${esc(sportOf(q.sportId).name)}</b> ${chip(q.teamId)}
+        <div class="xs muted">โดย ${esc(q.requestedBy)} • ${fmt(q.createdAt)}</div></div>${stPill(q.status)}</div>
       <div class="note" style="background:var(--bg)">${ic('swap')}<div>${pill('ออก', 'danger')} <b>${esc(q.outName)}</b> → ${pill('เข้า', 'success')} <b>${esc(q.inName)}</b></div></div>
-      <div class="small muted">มีผล: ${esc(q.effective)} • เหตุผล: ${esc(q.reason)}</div>
-      ${q.status === 'รออนุมัติ' ? `<div class="row" style="justify-content:flex-end"><button class="btn danger" data-act="decide" data-id="${q.id}" data-v="0">ไม่อนุมัติ</button><button class="btn primary" data-act="decide" data-id="${q.id}" data-v="1">อนุมัติ</button></div>`
-    : `<div class="xs muted">ตัดสินโดย ${esc(q.decidedBy)} • ${fmt(q.decidedAt)}</div>`}</div>`;
-    return (pend.map(card).join('') || '<div class="empty">ไม่มีคำขอที่รออนุมัติ</div>') +
-      (withPast && past.length ? `<details><summary class="small muted">ตัดสินแล้ว ${past.length} รายการ</summary><div class="stack" style="margin-top:10px">${past.map(card).join('')}</div></details>` : '');
+      <div class="small muted">มีผล: ${esc(q.effective)} • เหตุผล: ${esc(q.reason)}</div>${foot}</div>`;
+    };
+    return list.map(card).join('') || '<div class="empty">ยังไม่มีการเปลี่ยนตัว</div>';
   }
+
+  ACT['undo-sub'] = (el) => {
+    const id = el.dataset.id;
+    confirmBox('ย้อนการเปลี่ยนตัว?', 'ผู้เล่นเดิมจะกลับเข้าทีม และคนที่เข้ามาแทนจะออก ระบบบันทึกลงประวัติ', 'ย้อนกลับ', async () => {
+      await call('undoSub', { requestId: id });
+      toast('ย้อนการเปลี่ยนตัวแล้ว');
+      closeModal();
+      await reload();
+    }, true);
+  };
 
   function regList(regs) {
     const sorted = regs.slice().sort((a, b) => +sportOf(a.sportId).order - +sportOf(b.sportId).order);
@@ -784,7 +798,7 @@
   PAGES.ref = {
     roles: ['referee'],
     load: refreshBoot,
-    view() { return mobileShell('บันทึกผลการแข่งขัน', refListHtml(), { back: '', right: `<button class="icon-btn" data-act="reload">${ic('refresh')}</button>` }); }
+    view() { return mobileShell('บันทึกผลการแข่งขัน', refListHtml(), { back: '', right: `<a class="icon-btn" href="#/help" title="วิธีใช้งาน">${ic('info')}</a><button class="icon-btn" data-act="reload">${ic('refresh')}</button>` }); }
   };
 
   PAGES.score = {
@@ -879,7 +893,7 @@
       return adminShell('admin', 'ภาพรวมการแข่งขัน', `${esc(B.event.school)} • ${B.teams.length} สี • ${B.sports.length} รายการ`, `<a class="btn" href="#/settings">ลิงก์ & QR</a>`, `
         <div class="stats">${stat('นักกีฬาที่ลงทะเบียน', A.athleteCount, `จากนักเรียน ${A.studentCount} คน`)}
           ${stat('ทีมที่ส่งรายชื่อ', B.registrations.length, pendRegs ? `รออนุมัติ ${pendRegs} ทีม` : 'อนุมัติครบแล้ว', pendRegs ? 'warning' : 'success')}
-          ${stat('คำขอเปลี่ยนตัว', A.requests.length, A.requests.length ? 'รอการอนุมัติ' : 'ไม่มีค้าง', A.requests.length ? 'warning' : 'success')}
+          ${stat('เปลี่ยนตัวแล้ว', A.requests.filter((q) => q.status === 'มีผลแล้ว').length, 'ดูได้ในหน้าลงทะเบียน & เปลี่ยนตัว')}
           ${stat('แข่งจบแล้ว', real.filter((m) => m.status === 'done').length + ' / ' + real.length, `พร้อมแข่ง ${readyMatches().length} นัด`)}</div>
         <div class="cols">${medalTableHtml()}
           <div class="card flush"><div class="card-head"><h2>นัดที่พร้อมแข่ง</h2><a class="small" href="#/scores">ดูทั้งหมด →</a></div>
@@ -903,7 +917,7 @@
         <div class="card flush"><div class="tbl-wrap"><table class="tbl matrix"><tr><th>กีฬา</th>${B.teams.map((t) => `<th>${chip(t.id)}</th>`).join('')}</tr>
           ${B.sports.map((sp) => `<tr><td><b>${esc(sp.name)}</b><div class="xs muted">${sp.minPlayers}–${sp.maxPlayers} คน${sp.status === 'ปิดรับ' ? ' • ปิดรับ' : ''}</div></td>${B.teams.map((t) => `<td>${cell(sp, t)}</td>`).join('')}</tr>`).join('')}
         </table></div><p class="xs muted" style="padding:12px 20px"><span class="pill success">อนุมัติ</span> <span class="pill warning">รออนุมัติ</span> <span class="pill danger">ไม่อนุมัติ</span> — ตัวเลข = จำนวนคน/สูงสุด</p></div>
-        <div class="cols"><div class="stack"><h2 style="font-size:18px">คำขอเปลี่ยนตัวที่รออนุมัติ (${A.requests.length})</h2>${requestCards(A.requests, false)}</div>
+        <div class="cols"><div class="stack"><h2 style="font-size:18px">การเปลี่ยนตัวล่าสุด (${A.requests.length})</h2>${subCards(A.requests)}</div>
           <div class="card flush"><div class="card-head"><h2>ประวัติการแก้ไข</h2>${pill('แก้/ลบไม่ได้')}</div><div style="max-height:560px;overflow:auto">${logList(A.log)}</div></div></div>`);
     }
   };
@@ -1060,13 +1074,13 @@
       return adminShell('settings', 'ตั้งค่า & ลิงก์', 'ข้อมูลห้อง/นักเรียน/สี แก้ในแท็บ Classes, Students, Teams ของ Google Sheet ได้โดยตรง', `<a class="btn primary" href="#/poster">${ic('print', 'sm')} โปสเตอร์ QR</a>`, `
         <div class="card stack"><h2>ลิงก์สำหรับแต่ละบทบาท (ไม่ต้องล็อกอิน — ใครมีลิงก์ก็ใช้สิทธิ์นั้นได้ ส่งเป็นการส่วนตัว)</h2><div>
           ${link('นักเรียน (ทำ QR)', BASE)}
-          ${A.teams.map((t) => link('หัวหน้าสี' + t.name + ' (' + t.captainName + ')', BASE + '?captain=' + t.captainKey)).join('')}
+          ${A.teams.map((t) => link('ประธานสี' + t.name + (t.captainName ? ' (' + t.captainName + ')' : ''), BASE + '?captain=' + t.captainKey)).join('')}
           ${link('กรรมการบันทึกผล', BASE + '?ref=' + setting('refereeKey'))}
           ${link('แอดมิน', BASE + '?admin=' + setting('adminKey'))}</div>
           <p class="xs muted">ถ้าลิงก์หลุด: แก้รหัสในชีต Settings (adminKey, refereeKey) หรือ Teams (captainKey) ลิงก์เดิมจะใช้ไม่ได้ทันที</p></div>
         <div class="card stack"><h2>ข้อมูลงาน</h2><div class="form-grid">
           ${f('eventName', 'ชื่องาน')}${f('schoolName', 'ชื่อโรงเรียน')}${f('academicYear', 'ปีการศึกษา')}
-          ${f('regDeadline', 'ปิดรับสมัคร (เวลาไทย)', 'datetime-local', 'หลังเวลานี้ตัวแทนทีมต้องขอเปลี่ยนตัว')}
+          ${f('regDeadline', 'ปิดรับสมัคร (เวลาไทย)', 'datetime-local', 'หลังเวลานี้เพิ่ม/ลบรายชื่อไม่ได้ แต่ยังเปลี่ยนตัวได้')}
           ${f('pointsGold', 'คะแนนทอง', 'number')}${f('pointsSilver', 'คะแนนเงิน', 'number')}${f('pointsBronze', 'คะแนนทองแดง', 'number')}${f('pointsHonor', 'คะแนนชมเชย', 'number')}
           ${f('certTemplateId', 'ไอดี Google Slides แม่แบบเกียรติบัตร')}${f('certFolderId', 'ไอดีโฟลเดอร์เก็บ PDF', 'text', 'เว้นว่าง = สร้างให้อัตโนมัติ')}</div>
           <div><button class="btn primary" data-act="settings-save">บันทึกการตั้งค่า</button></div></div>
@@ -1136,6 +1150,63 @@
   };
   ACT.print = () => window.print();
 
+  // ---------- วิธีใช้งาน ----------
+
+  const HELP = [
+    ['student', 'นักเรียน', [
+      'สแกน QR บนโปสเตอร์ หรือเปิดเว็บ แล้วกด <b>สมัครแข่งกีฬา</b>',
+      'เลือก <b>ชั้น/ห้อง</b> และ <b>ชื่อของตัวเอง</b> ระบบเลือกสีให้ตามห้องอัตโนมัติ',
+      'เลือกกีฬา: <b>สร้างทีม</b> (สีเรายังไม่มีคนส่ง คุณจะเป็นตัวแทนทีม) · <b>ดูทีม</b> (มีคนส่งแล้ว ติดต่อตัวแทนทีม) · <b>สมัครตัวเอง</b> (กีฬาบุคคล)',
+      'พิมพ์ชื่อหรือห้องเพื่อค้นเพื่อนสีเดียวกัน → <b>+ เพิ่ม</b> เลือก จริง/สำรอง → <b>ส่งรายชื่อ</b>',
+      'แคปหน้าจอ <b>รหัสแก้ไขทีม 6 ตัว</b> เก็บไว้ ห้ามโพสต์ในกลุ่มรวม'
+    ], 'ดูสายการแข่งขันและตารางเหรียญได้จากหน้าแรกตลอดงาน'],
+    ['rep', 'ตัวแทนทีม', [
+      'หน้าแรก → <b>มีรหัสแก้ไขทีม</b> → กรอกรหัส (หรือเปิดลิงก์แก้ไขที่ได้ตอนส่ง)',
+      'ก่อนปิดรับสมัคร: <b>แก้ไขรายชื่อ</b> เพิ่ม/ลบ/สลับจริง-สำรองได้',
+      '<b>เปลี่ยนตัว</b> ได้ทุกเวลา: เลือกคนออก → ค้นคนเข้า → มีผลตั้งแต่นัดไหน → เหตุผล → <b>เปลี่ยนตัว (มีผลทันที)</b>',
+      'ทุกครั้งที่แก้ ระบบบันทึกชื่อผู้ทำและเวลาให้ประธานสีเห็น ถ้าเปลี่ยนผิดให้แจ้งประธานสีกดย้อนกลับ'
+    ], 'นัดที่แข่งไปแล้วยังเก็บชื่อเดิม คนที่ได้ลงแข่งแล้วยังได้เกียรติบัตร'],
+    ['captain', 'ประธานสี', [
+      'เปิด <b>ลิงก์ประธานสี</b> ที่ครูส่งให้ แล้วบุ๊กมาร์กไว้ (อย่าส่งต่อ)',
+      '<b>การเปลี่ยนตัว</b>: เห็นทุกครั้งที่ตัวแทนทีมเปลี่ยน ถ้าไม่เหมาะสมกด <b>ย้อนกลับ</b>',
+      '<b>ทีมทั้งหมด</b>: กด <b>เปิด</b> เพื่อดู อนุมัติ แก้รายชื่อ หรือ <b>ออกรหัสใหม่</b> เมื่อรหัสหาย/หลุด',
+      '<b>ยังไม่ส่ง</b>: กีฬาที่สีเรายังไม่มีทีม ตามเพื่อนให้สแกน QR',
+      '<b>ประวัติ</b>: ใครทำอะไร ผ่านรหัสหรือลิงก์ไหน เมื่อไร'
+    ], 'ประธานสีจัดการได้เฉพาะสีของตัวเอง'],
+    ['ref', 'กรรมการ', [
+      'เปิด <b>ลิงก์กรรมการ</b> บนมือถือ แล้วแตะนัดที่พร้อมแข่ง',
+      'กด <b>+ / −</b> ใส่สกอร์ ถ้าเสมอให้เลือกสีที่ชนะ (จุดโทษ/ต่อเวลา)',
+      'ดูว่าผู้ชนะไปเจอใครต่อ แล้วกด <b>ยืนยันผลการแข่งขัน</b>',
+      'กีฬาจัดอันดับ (เช่น วิ่ง): <b>บันทึกอันดับ</b> เลือกที่ 1–3'
+    ], 'บันทึกผิดแก้ได้ ถ้านัดถัดไปยังไม่ได้แข่ง'],
+    ['admin', 'แอดมิน (ครู)', [
+      'ใน Google Sheet ใส่ห้อง (<b>Classes</b>) นักเรียน (<b>Students</b>) และชื่อประธานสี (<b>Teams</b> คอลัมน์ captainName)',
+      '<b>ตั้งค่า & ลิงก์</b>: ตั้งวันปิดรับสมัคร แก้รายการกีฬา ส่งลิงก์ประธานสี/กรรมการ พิมพ์ <b>โปสเตอร์ QR</b>',
+      'หลังปิดรับสมัคร: <b>ลงทะเบียน</b> ตรวจ/อนุมัติ → <b>สายการแข่งขัน</b> จับสลาก แล้วกดการ์ดนัดใส่เวลา/สนาม',
+      'วันแข่ง: กรรมการบันทึกผล หรือแอดมินบันทึกที่ <b>บันทึกผล</b>',
+      'หลังแข่ง: <b>สรุปผล & เกียรติบัตร</b> → สร้างรายชื่อ → ดาวน์โหลด CSV หรือสร้าง PDF จาก Google Slides'
+    ], 'ลิงก์แอดมินคือรหัส adminKey ในแท็บ Settings ถ้าหลุดให้เปลี่ยนค่าในชีต']
+  ];
+  const HELP_DEFAULT = { public: 'student', captain: 'captain', referee: 'ref', admin: 'admin' }[ROLE];
+
+  PAGES.help = {
+    view() {
+      const cur = S.view.helpTab || HELP_DEFAULT;
+      const [, , steps, tip] = HELP.find((h) => h[0] === cur);
+      const body = `<div class="tabs">${HELP.map(([k, l]) => `<button class="${cur === k ? 'on' : ''}" data-act="help-tab" data-v="${k}">${l}</button>`).join('')}</div>
+        <div class="card"><ol class="stack" style="margin:0;padding-left:22px">${steps.map((s) => `<li>${s}</li>`).join('')}</ol></div>
+        ${note('primary', 'info', tip)}
+        <div class="card stack"><b>แก้ปัญหาเบื้องต้น</b><div class="small">
+          • ขึ้น "ลิงก์ไม่ถูกต้อง" หรือเห็นป้ายโหมดทดลอง → กด Ctrl+F5 (คอม) หรือปิดแท็บแล้วเปิดใหม่ (มือถือ)<br>
+          • หาชื่อตัวเองไม่เจอ / ห้องไม่มีสี → แจ้งครู<br>
+          • รหัสทีมหาย → ให้ประธานสีกด "ออกรหัสใหม่"<br>
+          • หน้าโหลด 3–4 วินาทีเป็นเรื่องปกติ ไม่ต้องกดซ้ำ</div></div>`;
+      if (ROLE === 'admin') return adminShell('help', 'วิธีใช้งาน', 'คู่มือสั้น ๆ แยกตามบทบาท', '', `<div class="stack" style="max-width:720px">${body}</div>`);
+      return mobileShell('วิธีใช้งาน', body, { back: HOME });
+    }
+  };
+  ACT['help-tab'] = (el) => { S.view.helpTab = el.dataset.v; paint(); };
+
   // ---------- โหมดทดลอง ----------
 
   PAGES.demo = {
@@ -1148,7 +1219,7 @@
         ${note('warning', 'info', 'ยังไม่ได้เชื่อม Google Sheet — ข้อมูลตัวอย่างเก็บในเบราว์เซอร์นี้เท่านั้น ลองสลับบทบาทได้จากลิงก์ด้านล่าง')}
         <b>เปิดในฐานะ…</b><div class="list">
           ${go('นักเรียน (สแกน QR)', '', 'สมัคร / เปิดทีมด้วยรหัส / ดูสาย')}
-          ${k.captainKeys.map((c, i) => go('หัวหน้าสี' + names[i], '?captain=' + c, 'อนุมัติรายชื่อ / เปลี่ยนตัว')).join('')}
+          ${k.captainKeys.map((c, i) => go('ประธานสี' + names[i], '?captain=' + c, 'อนุมัติรายชื่อ / เปลี่ยนตัว')).join('')}
           ${go('กรรมการ', '?ref=' + k.refereeKey, 'บันทึกผลบนมือถือ')}
           ${go('แอดมิน', '?admin=' + k.adminKey, 'จัดสาย / ผล / เกียรติบัตร / ตั้งค่า')}</div>
         <b>รหัสแก้ไขทีมตัวอย่าง</b><div class="list">${Object.keys(codes).map((n) => `<a class="li" href="${esc(BASE)}#/t/${Core.normalizeCode(codes[n])}" style="color:inherit"><div class="who">${esc(n)}</div><code>${esc(codes[n])}</code></a>`).join('')}</div>
